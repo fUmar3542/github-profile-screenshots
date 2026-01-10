@@ -4,9 +4,9 @@ Automated system to capture daily screenshots of GitHub profiles, upload them to
 
 ## Features
 
-- **Automated Screenshot Capture**: Uses Playwright for reliable browser automation
+- **Automated Screenshot Capture**: Uses Playwright to capture public GitHub profile screenshots
 - **GitHub Integration**: Automatically uploads screenshots to a designated repository
-- **Bio Updates**: Updates your GitHub profile bio with a link to the latest screenshot
+- **Profile README Updates**: Updates your GitHub profile README with the latest screenshot link
 - **Docker Support**: Fully containerized for consistent execution across environments
 - **Multiple Scheduling Options**: GitHub Actions, cron, or manual execution
 - **Comprehensive Testing**: Unit and integration tests with >80% coverage
@@ -80,12 +80,14 @@ Execute the automation:
 # Run with default configuration
 uv run python -m src.main
 
-# Run in dry-run mode (no API calls)
+# Run in dry-run mode (no API calls, skip upload/bio update)
 uv run python -m src.main --dry-run
 
-# Run with custom log level
+# Run with custom log level for debugging
 uv run python -m src.main --log-level DEBUG
 ```
+
+**That's it!** The system uses your `GITHUB_TOKEN` from the `.env` file for both API operations (upload, bio update) and browser authentication. No manual login or additional setup required.
 
 ## Docker Deployment
 
@@ -243,13 +245,15 @@ GitHub/
 
 ## How It Works
 
-1. **Screenshot Capture**: Playwright launches a headless Chrome browser and navigates to the specified GitHub profile, capturing a full-page screenshot.
+1. **Screenshot Capture**: Playwright launches a headless Chrome browser, navigates to the specified GitHub profile URL, and captures a full-page screenshot of the public profile view.
 
-2. **Upload**: The screenshot is uploaded to the designated GitHub repository with a timestamped filename (e.g., `screenshot-2024-01-15-10-30-45.png`).
+2. **Upload**: The screenshot is uploaded to the designated GitHub repository with a timestamped filename (e.g., `screenshot-2024-01-15-10-30-45.png`) using your GitHub personal access token.
 
-3. **Bio Update**: The GitHub API updates your profile bio, prepending a markdown image link to the latest screenshot. Previous screenshot links are automatically removed.
+3. **README Update**: The GitHub API updates your profile README, prepending a markdown image link to the latest screenshot. Previous screenshot links are automatically removed.
 
 4. **Cleanup**: Old local screenshots are cleaned up, keeping only the 30 most recent ones.
+
+This approach is fully automated and works perfectly in Docker/CI environments without any manual intervention.
 
 ## Troubleshooting
 
@@ -274,7 +278,9 @@ GitHub/
 **Screenshot capture fails**
 - Check internet connectivity
 - Verify the profile URL is correct and accessible
+- Ensure your `GITHUB_TOKEN` is valid and has the required permissions
 - Increase timeout values if network is slow
+- Check the logs with `--log-level DEBUG` for detailed error information
 
 ### Debug Mode
 
@@ -288,8 +294,9 @@ uv run python -m src.main --log-level DEBUG
 
 - **Token Permissions**: Use a token with minimal required permissions (`public_repo`, `user`)
 - **Token Storage**: Never commit `.env` files or tokens to version control
-- **GitHub Secrets**: Use GitHub Secrets for Actions workflows, not environment variables
+- **GitHub Secrets**: Use GitHub Secrets for Actions workflows to securely store your `GITHUB_TOKEN`
 - **Container Security**: The Docker image runs as a non-root user for enhanced security
+- **Token Security**: The GitHub token is only used during script execution and is not persisted to disk
 
 ## Performance Optimization
 

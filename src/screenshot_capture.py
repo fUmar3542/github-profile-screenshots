@@ -55,7 +55,7 @@ class ScreenshotCapture:
                 logger.debug("Launching browser")
                 browser = await playwright.chromium.launch(headless=True)
 
-                # Create context with specified viewport
+                # Create browser context
                 context = await browser.new_context(
                     viewport={
                         "width": self.viewport_width,

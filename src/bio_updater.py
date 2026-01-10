@@ -1,31 +1,33 @@
-"""GitHub profile bio updater module."""
+"""GitHub profile README updater module."""
 
 import logging
 import re
+from datetime import datetime
 
 from github import Github, GithubException
 
-logger = logging.getLogger("github_screenshot_automation.bio")
+logger = logging.getLogger("github_screenshot_automation.readme")
 
 
 class BioUpdater:
-    """Handles updating GitHub profile bio with screenshot links."""
+    """Handles updating GitHub profile README with screenshot images."""
 
-    # Use shorter marker for bio length constraints
-    SCREENSHOT_MARKER = "![Profile]"
+    # Marker for identifying screenshot sections in README
+    SCREENSHOT_MARKER = "![Profile Screenshot]"
 
     def __init__(self, token: str, username: str):
         """
-        Initialize bio updater.
+        Initialize README updater.
 
         Args:
             token: GitHub personal access token
-            username: GitHub username to update bio for
+            username: GitHub username (repository owner)
         """
         self.token = token
         self.username = username
         self.github: Github | None = None
-        self.original_bio: str | None = None
+        self.original_readme: str | None = None
+        self.repo_name = f"{username}/{username}"  # Profile repository
 
     def connect(self) -> None:
         """
@@ -35,7 +37,7 @@ class BioUpdater:
             Exception: If connection or authentication fails
         """
         try:
-            logger.info("Connecting to GitHub API for bio update")
+            logger.info("Connecting to GitHub API for README update")
             self.github = Github(self.token)
 
             # Test authentication
@@ -54,132 +56,149 @@ class BioUpdater:
             logger.error(f"Failed to connect to GitHub: {e}")
             raise
 
-    def get_current_bio(self) -> str:
+    def get_current_readme(self) -> str:
         """
-        Fetch current bio content.
+        Fetch current README content.
 
         Returns:
-            Current bio text
+            Current README text
 
         Raises:
-            Exception: If fetching bio fails
+            Exception: If fetching README fails
         """
         if not self.github:
             self.connect()
 
         try:
-            user = self.github.get_user()
-            bio = user.bio or ""
-            logger.info(f"Current bio length: {len(bio)} characters")
-            self.original_bio = bio
-            return bio
+            repo = self.github.get_repo(self.repo_name)
+            readme = repo.get_readme()
+            content = readme.decoded_content.decode('utf-8')
+            logger.info(f"Current README length: {len(content)} characters")
+            self.original_readme = content
+            return content
 
         except GithubException as e:
-            logger.error(f"Failed to fetch bio: {e.status} - {e.data}")
+            if e.status == 404:
+                logger.warning(f"README.md not found in {self.repo_name}. Will create new one.")
+                self.original_readme = ""
+                return ""
+            logger.error(f"Failed to fetch README: {e.status} - {e.data}")
             raise
         except Exception as e:
-            logger.error(f"Failed to fetch bio: {e}")
+            logger.error(f"Failed to fetch README: {e}")
             raise
 
     def update_bio(self, screenshot_url: str, prepend: bool = True) -> str:
         """
-        Update bio with screenshot link.
+        Update README with screenshot image only.
 
         Args:
             screenshot_url: Raw URL to screenshot
-            prepend: If True, add link at beginning; if False, replace existing link
+            prepend: If True, add image at beginning; if False, at end (ignored, kept for compatibility)
 
         Returns:
-            New bio content
+            New README content (only the screenshot)
 
         Raises:
-            Exception: If bio update fails
+            Exception: If README update fails
         """
         if not self.github:
             self.connect()
 
         try:
-            # Get current bio
-            current_bio = self.get_current_bio()
+            # Generate screenshot markdown image
+            screenshot_image = self._format_screenshot_link(screenshot_url)
 
-            # Generate screenshot link markdown
-            screenshot_link = self._format_screenshot_link(screenshot_url)
+            # README will only contain the screenshot image
+            new_readme = screenshot_image
 
-            # Remove existing screenshot links
-            new_bio = self._remove_existing_screenshot_links(current_bio)
+            # Update README in repository
+            logger.info(f"Updating README.md in {self.repo_name} (new length: {len(new_readme)} characters)")
 
-            # Add new screenshot link
-            if prepend:
-                if new_bio:
-                    new_bio = f"{screenshot_link}\n\n{new_bio}"
+            try:
+                repo = self.github.get_repo(self.repo_name)
+            except GithubException as e:
+                if e.status == 404:
+                    # Repository doesn't exist, create it
+                    logger.warning(f"Repository {self.repo_name} not found. Creating it...")
+                    user = self.github.get_user()
+                    repo = user.create_repo(
+                        name=self.username,
+                        description=f"GitHub profile for {self.username}",
+                        private=False,
+                        auto_init=False
+                    )
+                    logger.info(f"Repository {self.repo_name} created successfully")
                 else:
-                    new_bio = screenshot_link
-            else:
-                if new_bio:
-                    new_bio = f"{new_bio}\n\n{screenshot_link}"
-                else:
-                    new_bio = screenshot_link
+                    raise
 
-            # Validate bio length (GitHub limit is 160 characters)
-            if len(new_bio) > 160:
-                logger.warning(
-                    f"Bio length ({len(new_bio)}) exceeds GitHub limit (160). Truncating..."
+            try:
+                # Try to get existing README
+                readme_file = repo.get_readme()
+                commit_message = f"Update profile screenshot - {datetime.now().strftime('%Y-%m-%d')}"
+                repo.update_file(
+                    path="README.md",
+                    message=commit_message,
+                    content=new_readme,
+                    sha=readme_file.sha,
+                    branch="main"
                 )
-                # Try to keep screenshot link and truncate other content
-                if prepend:
-                    available_space = 160 - len(screenshot_link) - 2  # -2 for newlines
-                    truncated = current_bio[:available_space].rstrip()
-                    new_bio = f"{screenshot_link}\n\n{truncated}" if truncated else screenshot_link
+                logger.info(f"README.md updated successfully with commit: {commit_message}")
+            except GithubException as e:
+                if e.status == 404:
+                    # README doesn't exist, create it
+                    commit_message = f"Create README with profile screenshot - {datetime.now().strftime('%Y-%m-%d')}"
+                    repo.create_file(
+                        path="README.md",
+                        message=commit_message,
+                        content=new_readme,
+                        branch="main"
+                    )
+                    logger.info(f"README.md created successfully with commit: {commit_message}")
                 else:
-                    new_bio = screenshot_link
+                    raise
 
-            # Update bio
-            logger.info(f"Updating bio (new length: {len(new_bio)} characters)")
-            user = self.github.get_user()
-            user.edit(bio=new_bio)
-
-            logger.info("Bio updated successfully")
-            return new_bio
+            return new_readme
 
         except GithubException as e:
-            logger.error(f"Failed to update bio: {e.status} - {e.data}")
+            logger.error(f"Failed to update README: {e.status} - {e.data}")
             raise
         except Exception as e:
-            logger.error(f"Failed to update bio: {e}")
+            logger.error(f"Failed to update README: {e}")
             raise
 
     def _format_screenshot_link(self, screenshot_url: str) -> str:
         """
-        Format screenshot URL as markdown link (optimized for bio length).
+        Format screenshot URL as markdown image.
 
         Args:
             screenshot_url: Raw URL to screenshot
 
         Returns:
-            Formatted markdown link (compact format to fit 160 char limit)
+            Formatted markdown image that displays the screenshot
         """
-        # Use compact format: ![Profile](URL) - no HTML comments, shorter alt text
-        return f"![Profile]({screenshot_url})"
+        # Use markdown image syntax to embed the actual image
+        return f"![Profile Screenshot]({screenshot_url})"
 
-    def _remove_existing_screenshot_links(self, bio: str) -> str:
+    def _remove_existing_screenshot_links(self, readme: str) -> str:
         """
-        Remove existing screenshot links from bio.
+        Remove existing screenshot images from README.
 
         Args:
-            bio: Current bio content
+            readme: Current README content
 
         Returns:
-            Bio with screenshot links removed
+            README with screenshot images removed
         """
         # Remove old format with HTML comment marker
         pattern = r"<!-- github-screenshot-automation -->\s*\n?\s*!\[.*?\]\(.*?\)"
-        cleaned = re.sub(pattern, "", bio, flags=re.MULTILINE)
+        cleaned = re.sub(pattern, "", readme, flags=re.MULTILINE)
 
-        # Remove new compact format: ![Profile](URL)
+        # Remove compact format: ![Profile](URL)
         pattern = r"!\[Profile\]\(https://raw\.githubusercontent\.com/[^\)]+\)"
         cleaned = re.sub(pattern, "", cleaned)
 
-        # Also remove old format standalone image links
+        # Remove main screenshot format: ![Profile Screenshot](URL)
         pattern = r"!\[Profile Screenshot\]\(.*?\)"
         cleaned = re.sub(pattern, "", cleaned)
 
@@ -191,28 +210,36 @@ class BioUpdater:
 
     def rollback(self) -> None:
         """
-        Rollback bio to original content.
+        Rollback README to original content.
 
         Raises:
-            Exception: If rollback fails or no original bio is stored
+            Exception: If rollback fails or no original README is stored
         """
-        if self.original_bio is None:
-            raise ValueError("No original bio stored for rollback")
+        if self.original_readme is None:
+            raise ValueError("No original README stored for rollback")
 
         if not self.github:
             self.connect()
 
         try:
-            logger.info("Rolling back bio to original content")
-            user = self.github.get_user()
-            user.edit(bio=self.original_bio)
-            logger.info("Bio rollback successful")
+            logger.info("Rolling back README to original content")
+            repo = self.github.get_repo(self.repo_name)
+            readme_file = repo.get_readme()
+            commit_message = "Rollback README to original content"
+            repo.update_file(
+                path="README.md",
+                message=commit_message,
+                content=self.original_readme,
+                sha=readme_file.sha,
+                branch="main"
+            )
+            logger.info("README rollback successful")
 
         except GithubException as e:
-            logger.error(f"Failed to rollback bio: {e.status} - {e.data}")
+            logger.error(f"Failed to rollback README: {e.status} - {e.data}")
             raise
         except Exception as e:
-            logger.error(f"Failed to rollback bio: {e}")
+            logger.error(f"Failed to rollback README: {e}")
             raise
 
     def close(self) -> None:
@@ -224,7 +251,7 @@ class BioUpdater:
 
 def update_github_bio(token: str, username: str, screenshot_url: str) -> str:
     """
-    Convenience function to update GitHub bio with screenshot link.
+    Convenience function to update GitHub profile README with screenshot image.
 
     Args:
         token: GitHub personal access token
@@ -232,7 +259,7 @@ def update_github_bio(token: str, username: str, screenshot_url: str) -> str:
         screenshot_url: Raw URL to screenshot
 
     Returns:
-        New bio content
+        New README content
     """
     updater = BioUpdater(token, username)
     try:
