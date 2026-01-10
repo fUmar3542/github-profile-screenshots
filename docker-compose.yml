@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  github-screenshot-automation:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: github-screenshot-automation-container
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - DRY_RUN=${DRY_RUN:-false}
+    volumes:
+      # Mount screenshots directory for persistence
+      - ./screenshots:/app/screenshots:rw
+      # Optional: Mount logs directory
+      - ./logs:/app/logs:rw
+    restart: unless-stopped
+    # Resource limits (optional)
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 512M
+    # Health check
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+  # Optional: Scheduler service using cron
+  scheduler:
+    image: alpine:3.18
+    container_name: github-screenshot-scheduler
+    command: >
+      sh -c "
+        apk add --no-cache dcron &&
+        echo '0 0 * * * docker-compose -f /docker-compose.yml run --rm github-screenshot-automation' > /etc/crontabs/root &&
+        crond -f -l 2
+      "
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./docker-compose.yml:/docker-compose.yml:ro
+    restart: unless-stopped
+    profiles:
+      - scheduler
