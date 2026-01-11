@@ -83,26 +83,52 @@ class ScreenshotCapture:
                 await asyncio.sleep(2)
 
                 # Hide README section to capture from Popular repositories onwards
-                logger.info("Scrolling to Popular repositories section")
-                readme_hidden = False
-                header_hidden = False
+                logger.info("Hiding README section before screenshot")
 
                 try:
-                    # Try to find the README section and hide it
-                    readme_section = page.locator('article.markdown-body')
-                    if await readme_section.count() > 0:
-                        logger.info("Found README section, hiding it")
-                        await readme_section.evaluate('element => element.style.display = "none"')
-                        readme_hidden = True
+                    # Use JavaScript to hide README section with multiple selectors
+                    logger.debug("Executing JavaScript to hide README sections")
+                    await page.evaluate("""
+                        // Hide the README preview section (article tag)
+                        const readmePreview = document.querySelector('article.markdown-body');
+                        if (readmePreview) {
+                            readmePreview.style.display = 'none';
+                            console.log('Hidden: article.markdown-body');
+                        }
 
-                    # Also hide the profile header/bio section if present
-                    profile_header = page.locator('.js-profile-editable-replace')
-                    if await profile_header.count() > 0:
-                        logger.debug("Hiding profile header section")
-                        await profile_header.evaluate('element => element.style.display = "none"')
-                        header_hidden = True
+                        // Hide the entire readme container with data attribute
+                        const readmeContainer = document.querySelector('div[data-test-selector="profile-readme-container"]');
+                        if (readmeContainer) {
+                            readmeContainer.style.display = 'none';
+                            console.log('Hidden: profile-readme-container');
+                        }
+
+                        // Hide the JS profile readme container
+                        const readmeSection = document.querySelector('.js-profile-readme-container');
+                        if (readmeSection) {
+                            readmeSection.style.display = 'none';
+                            console.log('Hidden: js-profile-readme-container');
+                        }
+
+                        // Hide any h2 that says "README.md" and its parent container
+                        const readmeHeaders = document.querySelectorAll('h2');
+                        readmeHeaders.forEach(header => {
+                            if (header.textContent.includes('README')) {
+                                const container = header.closest('div[class*="readme"]') || header.closest('div.border');
+                                if (container) {
+                                    container.style.display = 'none';
+                                    console.log('Hidden: README header container');
+                                }
+                            }
+                        });
+                    """)
+                    logger.info("README sections hidden via JavaScript")
+
+                    # Wait for layout to adjust after hiding
+                    await page.wait_for_timeout(2000)
 
                     # Find and scroll to the Popular repositories section
+                    logger.info("Scrolling to Popular repositories section")
                     popular_repos = page.locator('h2:has-text("Popular repositories")')
                     if await popular_repos.count() > 0:
                         await popular_repos.scroll_into_view_if_needed()
@@ -117,11 +143,11 @@ class ScreenshotCapture:
                             logger.warning("Could not find Popular repositories heading")
 
                     # Wait for content to settle after scrolling
-                    await page.wait_for_timeout(1500)
+                    await page.wait_for_timeout(1000)
 
                 except Exception as e:
-                    logger.warning(f"Error during scroll setup: {e}")
-                    logger.warning("Will capture full page from current position")
+                    logger.warning(f"Error during README hiding: {e}")
+                    logger.warning("Will capture full page with README visible")
 
                 # Ensure output directory exists
                 ensure_directory_exists(output_path.parent)
@@ -136,18 +162,44 @@ class ScreenshotCapture:
 
                 logger.info(f"Screenshot saved successfully to {output_path}")
 
-                # Restore hidden sections
+                # Restore hidden sections using JavaScript
                 try:
-                    if readme_hidden:
-                        logger.debug("Restoring README section visibility")
-                        await readme_section.evaluate('element => element.style.display = ""')
+                    logger.debug("Restoring README sections visibility")
+                    await page.evaluate("""
+                        // Restore the README preview section (article tag)
+                        const readmePreview = document.querySelector('article.markdown-body');
+                        if (readmePreview) {
+                            readmePreview.style.display = 'block';
+                            console.log('Restored: article.markdown-body');
+                        }
 
-                    if header_hidden:
-                        logger.debug("Restoring profile header visibility")
-                        await profile_header.evaluate('element => element.style.display = ""')
+                        // Restore the entire readme container with data attribute
+                        const readmeContainer = document.querySelector('div[data-test-selector="profile-readme-container"]');
+                        if (readmeContainer) {
+                            readmeContainer.style.display = 'block';
+                            console.log('Restored: profile-readme-container');
+                        }
 
-                    if readme_hidden or header_hidden:
-                        logger.info("Hidden sections restored")
+                        // Restore the JS profile readme container
+                        const readmeSection = document.querySelector('.js-profile-readme-container');
+                        if (readmeSection) {
+                            readmeSection.style.display = 'block';
+                            console.log('Restored: js-profile-readme-container');
+                        }
+
+                        // Restore any h2 README containers
+                        const readmeHeaders = document.querySelectorAll('h2');
+                        readmeHeaders.forEach(header => {
+                            if (header.textContent.includes('README')) {
+                                const container = header.closest('div[class*="readme"]') || header.closest('div.border');
+                                if (container) {
+                                    container.style.display = 'block';
+                                    console.log('Restored: README header container');
+                                }
+                            }
+                        });
+                    """)
+                    logger.info("Hidden sections restored")
                 except Exception as e:
                     logger.warning(f"Error restoring hidden sections: {e}")
                     # Not critical since browser will be closed anyway
