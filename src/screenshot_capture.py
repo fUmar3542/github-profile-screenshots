@@ -84,18 +84,23 @@ class ScreenshotCapture:
 
                 # Hide README section to capture from Popular repositories onwards
                 logger.info("Scrolling to Popular repositories section")
+                readme_hidden = False
+                header_hidden = False
+
                 try:
                     # Try to find the README section and hide it
                     readme_section = page.locator('article.markdown-body')
                     if await readme_section.count() > 0:
                         logger.info("Found README section, hiding it")
                         await readme_section.evaluate('element => element.style.display = "none"')
+                        readme_hidden = True
 
                     # Also hide the profile header/bio section if present
                     profile_header = page.locator('.js-profile-editable-replace')
                     if await profile_header.count() > 0:
                         logger.debug("Hiding profile header section")
                         await profile_header.evaluate('element => element.style.display = "none"')
+                        header_hidden = True
 
                     # Find and scroll to the Popular repositories section
                     popular_repos = page.locator('h2:has-text("Popular repositories")')
@@ -130,6 +135,22 @@ class ScreenshotCapture:
                 )
 
                 logger.info(f"Screenshot saved successfully to {output_path}")
+
+                # Restore hidden sections
+                try:
+                    if readme_hidden:
+                        logger.debug("Restoring README section visibility")
+                        await readme_section.evaluate('element => element.style.display = ""')
+
+                    if header_hidden:
+                        logger.debug("Restoring profile header visibility")
+                        await profile_header.evaluate('element => element.style.display = ""')
+
+                    if readme_hidden or header_hidden:
+                        logger.info("Hidden sections restored")
+                except Exception as e:
+                    logger.warning(f"Error restoring hidden sections: {e}")
+                    # Not critical since browser will be closed anyway
 
                 # Close browser
                 await browser.close()
