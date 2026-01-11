@@ -50,12 +50,53 @@ jobs:
           LOG_LEVEL=INFO
           EOF
 
+      - name: Verify GitHub access and permissions
+        run: |
+          echo "=========================================="
+          echo "Verifying GitHub API access..."
+          echo "=========================================="
+          echo "Target profile repository: ${{ secrets.GH_USERNAME }}/${{ secrets.GH_USERNAME }}"
+          echo "Profile URL to screenshot: ${{ secrets.PROFILE_URL }}"
+          echo ""
+          # Test authentication
+          USER_INFO=$(curl -s -H "Authorization: token ${{ secrets.GH_TOKEN }}" \
+                           -H "Accept: application/vnd.github.v3+json" \
+                           https://api.github.com/user)
+          AUTHENTICATED_USER=$(echo $USER_INFO | jq -r '.login')
+          echo "✓ Authenticated as: $AUTHENTICATED_USER"
+          # Check profile repository access
+          REPO_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+                             -H "Authorization: token ${{ secrets.GH_TOKEN }}" \
+                             -H "Accept: application/vnd.github.v3+json" \
+                             https://api.github.com/repos/${{ secrets.GH_USERNAME }}/${{ secrets.GH_USERNAME }})
+          if [ "$REPO_STATUS" = "200" ]; then
+            echo "✓ Profile repository access: OK"
+          else
+            echo "⚠ Profile repository access: HTTP $REPO_STATUS"
+            echo "  Repository may need to be created during workflow run"
+          fi
+          echo "=========================================="
+          echo ""
+
       - name: Run screenshot automation
         run: python -m src.main
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
           GITHUB_USERNAME: ${{ secrets.GH_USERNAME }}
           PROFILE_URL: ${{ secrets.PROFILE_URL }}
+
+      - name: Verify README was updated
+        if: success()
+        run: |
+          echo "Verifying README update in profile repository..."
+          # Wait a moment for GitHub to process the commit
+          sleep 5
+          # Check if README exists in the profile repo using GitHub API
+          curl -H "Authorization: token ${{ secrets.GH_TOKEN }}" \
+               -H "Accept: application/vnd.github.v3+json" \
+               https://api.github.com/repos/${{ secrets.GH_USERNAME }}/${{ secrets.GH_USERNAME }}/readme \
+               | jq -r '.content' | base64 --decode | head -10
+          echo "✓ README verification complete"
 
       - name: Upload screenshot artifact
         if: always()
@@ -68,6 +109,15 @@ jobs:
       - name: Notify on failure
         if: failure()
         run: |
-          echo "Screenshot automation failed!"
-          echo "Check the logs for details."
-          # Add notification logic here (e.g., send to Slack, email, etc.)
+          echo "=========================================="
+          echo "❌ Screenshot automation failed!"
+          echo "=========================================="
+          echo ""
+          echo "Please check the logs above for error details."
+          echo "Common issues:"
+          echo "  1. Token permissions - Ensure GH_TOKEN has 'repo' scope"
+          echo "  2. Repository access - Verify the profile repository exists"
+          echo "  3. Network issues - Check if GitHub API is accessible"
+          echo ""
+          echo "=========================================="
+          exit 1

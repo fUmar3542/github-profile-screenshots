@@ -87,12 +87,17 @@ def run_workflow(dry_run: bool = False) -> None:
         readme_updater = ReadmeUpdater(config.github_token, config.github_username)
 
         try:
+            logger.info(f"Updating README with screenshot: {screenshot_filename}")
             new_readme = readme_updater.update_readme(screenshot_filename)
-            logger.info("README updated successfully")
-            logger.info(f"New README: {new_readme}")
+            logger.info("README updated successfully!")
+            logger.info(f"New README content:\n{new_readme}")
         except Exception as e:
-            logger.error(f"Failed to update README: {e}")
-            raise
+            logger.error("=" * 60)
+            logger.error("CRITICAL ERROR: Failed to update README!")
+            logger.error(f"Error type: {type(e).__name__}")
+            logger.error(f"Error details: {str(e)}")
+            logger.error("=" * 60)
+            raise RuntimeError(f"README update failed: {e}") from e
         finally:
             readme_updater.close()
 

@@ -4,7 +4,7 @@ import logging
 import time
 from pathlib import Path
 
-from github import Github, GithubException, Repository
+from github import Auth, Github, GithubException, Repository
 
 logger = logging.getLogger("github_screenshot_automation.uploader")
 
@@ -39,7 +39,8 @@ class GitHubUploader:
         """
         try:
             logger.info("Connecting to GitHub API")
-            self.github = Github(self.token)
+            auth = Auth.Token(self.token)
+            self.github = Github(auth=auth)
 
             # Test authentication
             user = self.github.get_user()

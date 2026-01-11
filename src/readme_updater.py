@@ -3,7 +3,7 @@
 import logging
 from datetime import datetime
 
-from github import Github, GithubException
+from github import Auth, Github, GithubException
 
 logger = logging.getLogger("github_screenshot_automation.readme")
 
@@ -38,7 +38,8 @@ class ReadmeUpdater:
         """
         try:
             logger.info("Connecting to GitHub API for README update")
-            self.github = Github(self.token)
+            auth = Auth.Token(self.token)
+            self.github = Github(auth=auth)
 
             # Test authentication
             user = self.github.get_user()
@@ -114,6 +115,7 @@ class ReadmeUpdater:
 
             try:
                 repo = self.github.get_repo(self.repo_name)
+                logger.info(f"Successfully accessed repository: {repo.full_name}")
             except GithubException as e:
                 if e.status == 404:
                     # Repository doesn't exist, create it
@@ -127,41 +129,52 @@ class ReadmeUpdater:
                     )
                     logger.info(f"Repository {self.repo_name} created successfully")
                 else:
+                    logger.error(f"Failed to access repository {self.repo_name}: {e.status} - {e.data}")
                     raise
+
+            # Get default branch dynamically
+            default_branch = repo.default_branch
+            logger.info(f"Repository default branch: {default_branch}")
 
             try:
                 # Try to get existing README
                 readme_file = repo.get_readme()
+                logger.info(f"Found existing README.md (SHA: {readme_file.sha[:7]}...)")
                 commit_message = f"Update profile screenshot - {datetime.now().strftime('%Y-%m-%d')}"
-                repo.update_file(
+                result = repo.update_file(
                     path="README.md",
                     message=commit_message,
                     content=new_readme,
                     sha=readme_file.sha,
-                    branch="main"
+                    branch=default_branch
                 )
                 logger.info(f"README.md updated successfully with commit: {commit_message}")
+                logger.info(f"Commit SHA: {result['commit'].sha[:7]}...")
             except GithubException as e:
                 if e.status == 404:
                     # README doesn't exist, create it
+                    logger.info("README.md not found, creating new file...")
                     commit_message = f"Create README with profile screenshot - {datetime.now().strftime('%Y-%m-%d')}"
-                    repo.create_file(
+                    result = repo.create_file(
                         path="README.md",
                         message=commit_message,
                         content=new_readme,
-                        branch="main"
+                        branch=default_branch
                     )
                     logger.info(f"README.md created successfully with commit: {commit_message}")
+                    logger.info(f"Commit SHA: {result['commit'].sha[:7]}...")
                 else:
+                    logger.error(f"Failed to update/create README: {e.status} - {e.data}")
                     raise
 
             return new_readme
 
         except GithubException as e:
-            logger.error(f"Failed to update README: {e.status} - {e.data}")
+            logger.error(f"GitHub API error during README update: {e.status} - {e.data}")
+            logger.error(f"Error message: {str(e)}")
             raise
         except Exception as e:
-            logger.error(f"Failed to update README: {e}")
+            logger.error(f"Unexpected error during README update: {type(e).__name__}: {str(e)}")
             raise
 
     def _format_screenshot_link(self, screenshot_filename: str) -> str:
