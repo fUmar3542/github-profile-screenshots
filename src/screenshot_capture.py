@@ -82,24 +82,46 @@ class ScreenshotCapture:
                 # Additional wait for dynamic content
                 await asyncio.sleep(2)
 
-                # Scroll to Popular repositories section
+                # Hide README section to capture from Popular repositories onwards
                 logger.info("Scrolling to Popular repositories section")
                 try:
-                    # Try to find and scroll to the Popular repositories section
+                    # Try to find the README section and hide it
+                    readme_section = page.locator('article.markdown-body')
+                    if await readme_section.count() > 0:
+                        logger.info("Found README section, hiding it")
+                        await readme_section.evaluate('element => element.style.display = "none"')
+
+                    # Also hide the profile header/bio section if present
+                    profile_header = page.locator('.js-profile-editable-replace')
+                    if await profile_header.count() > 0:
+                        logger.debug("Hiding profile header section")
+                        await profile_header.evaluate('element => element.style.display = "none"')
+
+                    # Find and scroll to the Popular repositories section
                     popular_repos = page.locator('h2:has-text("Popular repositories")')
-                    await popular_repos.scroll_into_view_if_needed()
-                    logger.info("Scrolled to Popular repositories section")
+                    if await popular_repos.count() > 0:
+                        await popular_repos.scroll_into_view_if_needed()
+                        logger.info("Scrolled to Popular repositories section")
+                    else:
+                        # Try alternate selectors
+                        popular_repos = page.locator('h2.f4.mb-2.text-normal')
+                        if await popular_repos.count() > 0:
+                            await popular_repos.first.scroll_into_view_if_needed()
+                            logger.info("Scrolled to repositories section")
+                        else:
+                            logger.warning("Could not find Popular repositories heading")
 
                     # Wait for content to settle after scrolling
-                    await page.wait_for_timeout(2000)
+                    await page.wait_for_timeout(1500)
+
                 except Exception as e:
-                    logger.warning(f"Could not find Popular repositories section: {e}")
-                    logger.warning("Capturing full page from top instead")
+                    logger.warning(f"Error during scroll setup: {e}")
+                    logger.warning("Will capture full page from current position")
 
                 # Ensure output directory exists
                 ensure_directory_exists(output_path.parent)
 
-                # Capture full page screenshot from current scroll position
+                # Capture full page screenshot (will start from visible content after hiding)
                 logger.info(f"Capturing full page screenshot to {output_path}")
                 await page.screenshot(
                     path=str(output_path),
