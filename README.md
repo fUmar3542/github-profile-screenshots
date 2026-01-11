@@ -1,6 +1,6 @@
 # GitHub Profile Screenshot Automation
 
-Automated system to capture daily screenshots of GitHub profiles, upload them to a repository, and update the profile bio with the latest screenshot link.
+Automated system to capture weekly screenshots of GitHub profiles, upload them to a repository, and update the profile README with the latest screenshot link.
 
 ## Features
 
@@ -55,12 +55,11 @@ Edit `.env` with your configuration:
 GITHUB_TOKEN=your_github_personal_access_token
 GITHUB_USERNAME=your_github_username
 
-# GitHub Repository for Screenshot Storage
-GITHUB_REPO=username/repository-name
-SCREENSHOT_PATH=screenshots
-
 # Target Profile to Screenshot
 PROFILE_URL=https://github.com/username
+
+# Screenshot Storage Configuration
+SCREENSHOT_PATH=screenshots
 
 # Screenshot Configuration (optional)
 VIEWPORT_WIDTH=1920
@@ -80,14 +79,14 @@ Execute the automation:
 # Run with default configuration
 uv run python -m src.main
 
-# Run in dry-run mode (no API calls, skip upload/bio update)
+# Run in dry-run mode (no API calls, skip upload/README update)
 uv run python -m src.main --dry-run
 
 # Run with custom log level for debugging
 uv run python -m src.main --log-level DEBUG
 ```
 
-**That's it!** The system uses your `GITHUB_TOKEN` from the `.env` file for both API operations (upload, bio update) and browser authentication. No manual login or additional setup required.
+**That's it!** The system uses your `GITHUB_TOKEN` from the `.env` file for both API operations (upload, README update) and browser authentication. No manual login or additional setup required.
 
 ## Docker Deployment
 
@@ -123,19 +122,18 @@ docker-compose down
 
 ### Option 1: GitHub Actions (Recommended)
 
-GitHub Actions provides free daily execution with no infrastructure required.
+GitHub Actions provides free weekly execution with no infrastructure required.
 
 1. Add the following secrets to your GitHub repository:
    - `GH_TOKEN`: Your GitHub personal access token
    - `GH_USERNAME`: Your GitHub username
-   - `GH_REPO`: Repository for screenshots (format: `owner/repo`)
    - `PROFILE_URL`: GitHub profile URL to screenshot
 
-2. The workflow in `.github/workflows/daily-screenshot.yml` runs automatically at midnight UTC.
+2. The workflow in `.github/workflows/weekly-screenshot.yml` runs automatically every Sunday at midnight UTC.
 
 3. Manual trigger:
    - Go to Actions tab in your repository
-   - Select "Daily GitHub Profile Screenshot"
+   - Select "Weekly GitHub Profile Screenshot"
    - Click "Run workflow"
 
 ### Option 2: Cron (Linux/macOS)
@@ -149,8 +147,8 @@ chmod +x cron-schedule.sh
 # Edit crontab
 crontab -e
 
-# Add this line to run daily at midnight
-0 0 * * * /path/to/GitHub/cron-schedule.sh
+# Add this line to run weekly on Sundays at midnight
+0 0 * * 0 /path/to/GitHub/cron-schedule.sh
 ```
 
 ### Option 3: Docker Compose Scheduler
@@ -169,7 +167,6 @@ docker-compose --profile scheduler up -d
 |----------|-------------|---------|
 | `GITHUB_TOKEN` | GitHub personal access token | `ghp_xxxxxxxxxxxx` |
 | `GITHUB_USERNAME` | Your GitHub username | `johndoe` |
-| `GITHUB_REPO` | Repository for screenshots | `johndoe/screenshots` |
 | `PROFILE_URL` | Profile URL to screenshot | `https://github.com/johndoe` |
 
 ### Optional Environment Variables
@@ -182,7 +179,7 @@ docker-compose --profile scheduler up -d
 | `SCREENSHOT_QUALITY` | `90` | Screenshot quality (1-100) |
 | `DRY_RUN` | `false` | Skip API calls for testing |
 | `LOG_LEVEL` | `INFO` | Logging level (DEBUG, INFO, WARNING, ERROR) |
-| `SCHEDULE_TIME` | `00:00` | Daily execution time (24-hour format) |
+| `SCHEDULE_TIME` | `00:00` | Weekly execution time (24-hour format) |
 | `TIMEZONE` | `UTC` | Timezone for scheduling |
 
 ## Development
@@ -223,18 +220,18 @@ GitHub/
 │   ├── config.py            # Configuration management
 │   ├── screenshot_capture.py # Playwright screenshot module
 │   ├── github_uploader.py   # GitHub upload module
-│   ├── bio_updater.py       # Bio update module
+│   ├── readme_updater.py    # README update module
 │   └── utils.py             # Utility functions
 ├── tests/
 │   ├── test_config.py
 │   ├── test_utils.py
 │   ├── test_screenshot_capture.py
 │   ├── test_github_uploader.py
-│   ├── test_bio_updater.py
+│   ├── test_readme_updater.py
 │   └── test_integration.py
 ├── .github/
 │   └── workflows/
-│       └── daily-screenshot.yml
+│       └── weekly-screenshot.yml
 ├── screenshots/             # Local screenshot storage
 ├── Dockerfile
 ├── docker-compose.yml
@@ -245,11 +242,11 @@ GitHub/
 
 ## How It Works
 
-1. **Screenshot Capture**: Playwright launches a headless Chrome browser, navigates to the specified GitHub profile URL, and captures a full-page screenshot of the public profile view.
+1. **Screenshot Capture**: Playwright launches a headless Chrome browser, navigates to the specified GitHub profile URL, scrolls to the Popular repositories section, and captures a full-page screenshot of the public profile view.
 
-2. **Upload**: The screenshot is uploaded to the designated GitHub repository with a timestamped filename (e.g., `screenshot-2024-01-15-10-30-45.png`) using your GitHub personal access token.
+2. **Upload to Profile Repository**: The screenshot is uploaded to your profile repository (`username/username`) in the `screenshots/` directory with a date-based filename (e.g., `2026-01-11.png`) using your GitHub personal access token.
 
-3. **README Update**: The GitHub API updates your profile README, prepending a markdown image link to the latest screenshot. Previous screenshot links are automatically removed.
+3. **README Update**: The GitHub API updates your profile README (`username/username/README.md`) with a markdown image link using a relative path (e.g., `![Profile Screenshot](./screenshots/2026-01-11.png)`).
 
 4. **Cleanup**: Old local screenshots are cleaned up, keeping only the 30 most recent ones.
 
@@ -265,11 +262,7 @@ This approach is fully automated and works perfectly in Docker/CI environments w
 
 **Error: GitHub API rate limiting**
 - The application includes retry logic with exponential backoff
-- Consider reducing execution frequency
-
-**Error: Bio exceeds maximum length**
-- GitHub bios have a 160-character limit
-- The application automatically truncates content while preserving the screenshot link
+- Consider reducing execution frequency (already set to weekly)
 
 **Error: Playwright browser not found**
 - Run `uv run playwright install chromium` to install browser binaries
