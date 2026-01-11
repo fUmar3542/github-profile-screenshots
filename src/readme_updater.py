@@ -1,7 +1,6 @@
 """GitHub profile README updater module."""
 
 import logging
-import re
 from datetime import datetime
 
 from github import Github, GithubException
@@ -9,11 +8,13 @@ from github import Github, GithubException
 logger = logging.getLogger("github_screenshot_automation.readme")
 
 
-class BioUpdater:
+class ReadmeUpdater:
     """Handles updating GitHub profile README with screenshot images."""
 
     # Marker for identifying screenshot sections in README
     SCREENSHOT_MARKER = "![Profile Screenshot]"
+    # Hardcoded profile repository
+    PROFILE_REPO = "fUmar3542/fUmar3542"
 
     def __init__(self, token: str, username: str):
         """
@@ -26,8 +27,7 @@ class BioUpdater:
         self.token = token
         self.username = username
         self.github: Github | None = None
-        self.original_readme: str | None = None
-        self.repo_name = f"{username}/{username}"  # Profile repository
+        self.repo_name = self.PROFILE_REPO
 
     def connect(self) -> None:
         """
@@ -74,13 +74,11 @@ class BioUpdater:
             readme = repo.get_readme()
             content = readme.decoded_content.decode('utf-8')
             logger.info(f"Current README length: {len(content)} characters")
-            self.original_readme = content
             return content
 
         except GithubException as e:
             if e.status == 404:
                 logger.warning(f"README.md not found in {self.repo_name}. Will create new one.")
-                self.original_readme = ""
                 return ""
             logger.error(f"Failed to fetch README: {e.status} - {e.data}")
             raise
@@ -88,16 +86,15 @@ class BioUpdater:
             logger.error(f"Failed to fetch README: {e}")
             raise
 
-    def update_bio(self, screenshot_url: str, prepend: bool = True) -> str:
+    def update_readme(self, screenshot_filename: str) -> str:
         """
-        Update README with screenshot image only.
+        Update README with screenshot image using relative path.
 
         Args:
-            screenshot_url: Raw URL to screenshot
-            prepend: If True, add image at beginning; if False, at end (ignored, kept for compatibility)
+            screenshot_filename: Screenshot filename (e.g., '2026-01-10.png')
 
         Returns:
-            New README content (only the screenshot)
+            New README content
 
         Raises:
             Exception: If README update fails
@@ -106,14 +103,14 @@ class BioUpdater:
             self.connect()
 
         try:
-            # Generate screenshot markdown image
-            screenshot_image = self._format_screenshot_link(screenshot_url)
+            # Generate screenshot markdown image with relative path
+            screenshot_image = self._format_screenshot_link(screenshot_filename)
 
             # README will only contain the screenshot image
             new_readme = screenshot_image
 
             # Update README in repository
-            logger.info(f"Updating README.md in {self.repo_name} (new length: {len(new_readme)} characters)")
+            logger.info(f"Updating README.md in {self.repo_name} with relative path")
 
             try:
                 repo = self.github.get_repo(self.repo_name)
@@ -167,80 +164,19 @@ class BioUpdater:
             logger.error(f"Failed to update README: {e}")
             raise
 
-    def _format_screenshot_link(self, screenshot_url: str) -> str:
+    def _format_screenshot_link(self, screenshot_filename: str) -> str:
         """
-        Format screenshot URL as markdown image.
+        Format screenshot filename as markdown image with relative path.
 
         Args:
-            screenshot_url: Raw URL to screenshot
+            screenshot_filename: Screenshot filename (e.g., '2026-01-10.png')
 
         Returns:
-            Formatted markdown image that displays the screenshot
+            Formatted markdown image with relative path
         """
-        # Use markdown image syntax to embed the actual image
-        return f"![Profile Screenshot]({screenshot_url})"
-
-    def _remove_existing_screenshot_links(self, readme: str) -> str:
-        """
-        Remove existing screenshot images from README.
-
-        Args:
-            readme: Current README content
-
-        Returns:
-            README with screenshot images removed
-        """
-        # Remove old format with HTML comment marker
-        pattern = r"<!-- github-screenshot-automation -->\s*\n?\s*!\[.*?\]\(.*?\)"
-        cleaned = re.sub(pattern, "", readme, flags=re.MULTILINE)
-
-        # Remove compact format: ![Profile](URL)
-        pattern = r"!\[Profile\]\(https://raw\.githubusercontent\.com/[^\)]+\)"
-        cleaned = re.sub(pattern, "", cleaned)
-
-        # Remove main screenshot format: ![Profile Screenshot](URL)
-        pattern = r"!\[Profile Screenshot\]\(.*?\)"
-        cleaned = re.sub(pattern, "", cleaned)
-
-        # Clean up extra whitespace
-        cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
-        cleaned = cleaned.strip()
-
-        return cleaned
-
-    def rollback(self) -> None:
-        """
-        Rollback README to original content.
-
-        Raises:
-            Exception: If rollback fails or no original README is stored
-        """
-        if self.original_readme is None:
-            raise ValueError("No original README stored for rollback")
-
-        if not self.github:
-            self.connect()
-
-        try:
-            logger.info("Rolling back README to original content")
-            repo = self.github.get_repo(self.repo_name)
-            readme_file = repo.get_readme()
-            commit_message = "Rollback README to original content"
-            repo.update_file(
-                path="README.md",
-                message=commit_message,
-                content=self.original_readme,
-                sha=readme_file.sha,
-                branch="main"
-            )
-            logger.info("README rollback successful")
-
-        except GithubException as e:
-            logger.error(f"Failed to rollback README: {e.status} - {e.data}")
-            raise
-        except Exception as e:
-            logger.error(f"Failed to rollback README: {e}")
-            raise
+        # Use relative path format: ./screenshots/filename
+        relative_path = f"./screenshots/{screenshot_filename}"
+        return f"![Profile Screenshot]({relative_path})"
 
     def close(self) -> None:
         """Close GitHub connection."""
@@ -249,20 +185,20 @@ class BioUpdater:
             logger.debug("GitHub connection closed")
 
 
-def update_github_bio(token: str, username: str, screenshot_url: str) -> str:
+def update_github_readme(token: str, username: str, screenshot_filename: str) -> str:
     """
     Convenience function to update GitHub profile README with screenshot image.
 
     Args:
         token: GitHub personal access token
         username: GitHub username
-        screenshot_url: Raw URL to screenshot
+        screenshot_filename: Screenshot filename
 
     Returns:
         New README content
     """
-    updater = BioUpdater(token, username)
+    updater = ReadmeUpdater(token, username)
     try:
-        return updater.update_bio(screenshot_url)
+        return updater.update_readme(screenshot_filename)
     finally:
         updater.close()

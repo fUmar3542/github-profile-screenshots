@@ -14,9 +14,10 @@ class TestGitHubUploader:
 
     def test_init(self):
         """Test initialization."""
-        uploader = GitHubUploader("test_token", "owner/repo")
+        uploader = GitHubUploader("test_token", "testuser")
         assert uploader.token == "test_token"
-        assert uploader.repo_name == "owner/repo"
+        assert uploader.username == "testuser"
+        assert uploader.repo_name == "fUmar3542/fUmar3542"
         assert uploader.max_retries == 3
 
     @patch("src.github_uploader.Github")
@@ -25,14 +26,14 @@ class TestGitHubUploader:
         mock_user = MagicMock()
         mock_user.login = "testuser"
         mock_repo = MagicMock()
-        mock_repo.full_name = "testuser/test-repo"
+        mock_repo.full_name = "fUmar3542/fUmar3542"
 
         mock_github_instance = MagicMock()
         mock_github_instance.get_user.return_value = mock_user
         mock_github_instance.get_repo.return_value = mock_repo
         mock_github.return_value = mock_github_instance
 
-        uploader = GitHubUploader("test_token", "testuser/test-repo")
+        uploader = GitHubUploader("test_token", "testuser")
         uploader.connect()
 
         assert uploader.github is not None
@@ -46,7 +47,7 @@ class TestGitHubUploader:
         mock_github_instance.get_user.side_effect = GithubException(401, "Unauthorized")
         mock_github.return_value = mock_github_instance
 
-        uploader = GitHubUploader("invalid_token", "owner/repo")
+        uploader = GitHubUploader("invalid_token", "testuser")
 
         with pytest.raises(GithubException):
             uploader.connect()
@@ -72,15 +73,14 @@ class TestGitHubUploader:
         mock_github_instance.get_repo.return_value = mock_repo
         mock_github.return_value = mock_github_instance
 
-        uploader = GitHubUploader("test_token", "testuser/test-repo")
+        uploader = GitHubUploader("test_token", "testuser")
         uploader.connect()
 
         # Upload
-        raw_url = uploader.upload_screenshot(test_file, "screenshots/test.png", "Test commit")
+        relative_path = uploader.upload_screenshot(test_file, "screenshots/test.png", "Test commit")
 
         # Assertions
-        assert "raw.githubusercontent.com" in raw_url
-        assert "testuser/test-repo" in raw_url
+        assert relative_path == "./screenshots/test.png"
         mock_repo.create_file.assert_called_once()
 
     @patch("src.github_uploader.Github")
@@ -107,14 +107,14 @@ class TestGitHubUploader:
         mock_github_instance.get_repo.return_value = mock_repo
         mock_github.return_value = mock_github_instance
 
-        uploader = GitHubUploader("test_token", "testuser/test-repo")
+        uploader = GitHubUploader("test_token", "testuser")
         uploader.connect()
 
         # Upload
-        raw_url = uploader.upload_screenshot(test_file, "screenshots/test.png")
+        relative_path = uploader.upload_screenshot(test_file, "screenshots/test.png")
 
         # Assertions
-        assert "raw.githubusercontent.com" in raw_url
+        assert relative_path == "./screenshots/test.png"
         mock_repo.update_file.assert_called_once()
 
     @patch("src.github_uploader.Github")
@@ -123,7 +123,7 @@ class TestGitHubUploader:
         mock_github_instance = MagicMock()
         mock_github.return_value = mock_github_instance
 
-        uploader = GitHubUploader("test_token", "owner/repo")
+        uploader = GitHubUploader("test_token", "testuser")
         uploader.repo = MagicMock()
 
         with pytest.raises(FileNotFoundError):
@@ -159,24 +159,14 @@ class TestGitHubUploader:
         mock_github_instance.get_repo.return_value = mock_repo
         mock_github.return_value = mock_github_instance
 
-        uploader = GitHubUploader("test_token", "testuser/test-repo", max_retries=3)
+        uploader = GitHubUploader("test_token", "testuser", max_retries=3)
         uploader.connect()
 
         # Upload should succeed after retries
-        raw_url = uploader.upload_screenshot(test_file, "screenshots/test.png")
+        relative_path = uploader.upload_screenshot(test_file, "screenshots/test.png")
 
-        assert raw_url is not None
+        assert relative_path == "./screenshots/test.png"
         assert mock_sleep.call_count == 2  # Called between retries
-
-    def test_generate_raw_url(self):
-        """Test raw URL generation."""
-        uploader = GitHubUploader("test_token", "owner/repo")
-        uploader.repo = MagicMock()
-        uploader.repo.default_branch = "main"
-
-        raw_url = uploader._generate_raw_url("screenshots/test.png")
-
-        assert raw_url == "https://raw.githubusercontent.com/owner/repo/main/screenshots/test.png"
 
     @patch("src.github_uploader.GitHubUploader")
     def test_upload_to_github_function(self, mock_uploader_class, tmp_path):
@@ -185,11 +175,11 @@ class TestGitHubUploader:
         test_file.write_bytes(b"test")
 
         mock_instance = MagicMock()
-        mock_instance.upload_screenshot.return_value = "https://example.com/test.png"
+        mock_instance.upload_screenshot.return_value = "./screenshots/test.png"
         mock_uploader_class.return_value = mock_instance
 
-        result = upload_to_github("token", "owner/repo", test_file, "screenshots/test.png")
+        result = upload_to_github("token", "testuser", test_file, "screenshots/test.png")
 
-        assert result == "https://example.com/test.png"
+        assert result == "./screenshots/test.png"
         mock_instance.upload_screenshot.assert_called_once()
         mock_instance.close.assert_called_once()

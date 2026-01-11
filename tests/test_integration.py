@@ -16,7 +16,6 @@ class TestIntegration:
         {
             "GITHUB_TOKEN": "test_token",
             "GITHUB_USERNAME": "testuser",
-            "GITHUB_REPO": "testuser/test-repo",
             "PROFILE_URL": "https://github.com/testuser",
             "DRY_RUN": "true",
         },
@@ -42,20 +41,19 @@ class TestIntegration:
 
         # Assertions
         mock_capturer.capture_sync.assert_called_once()
-        # In dry-run, upload and bio update should not be called
+        # In dry-run, upload and README update should not be called
 
     @patch.dict(
         os.environ,
         {
             "GITHUB_TOKEN": "test_token",
             "GITHUB_USERNAME": "testuser",
-            "GITHUB_REPO": "testuser/test-repo",
             "PROFILE_URL": "https://github.com/testuser",
             "DRY_RUN": "false",
         },
     )
     @patch("src.main.cleanup_old_screenshots")
-    @patch("src.main.BioUpdater")
+    @patch("src.main.ReadmeUpdater")
     @patch("src.main.GitHubUploader")
     @patch("src.main.ScreenshotCapture")
     @patch("src.main.setup_logging")
@@ -64,7 +62,7 @@ class TestIntegration:
         mock_logging,
         mock_capturer_class,
         mock_uploader_class,
-        mock_bio_updater_class,
+        mock_readme_updater_class,
         mock_cleanup,
         tmp_path,
     ):
@@ -83,13 +81,13 @@ class TestIntegration:
 
         # GitHub uploader
         mock_uploader = MagicMock()
-        mock_uploader.upload_screenshot.return_value = "https://example.com/screenshot.png"
+        mock_uploader.upload_screenshot.return_value = "./screenshots/test_screenshot.png"
         mock_uploader_class.return_value = mock_uploader
 
-        # Bio updater
-        mock_bio_updater = MagicMock()
-        mock_bio_updater.update_bio.return_value = "Updated bio"
-        mock_bio_updater_class.return_value = mock_bio_updater
+        # README updater
+        mock_readme_updater = MagicMock()
+        mock_readme_updater.update_readme.return_value = "![Profile Screenshot](./screenshots/test_screenshot.png)"
+        mock_readme_updater_class.return_value = mock_readme_updater
 
         # Run workflow
         with patch("src.main.get_project_root", return_value=tmp_path):
@@ -98,7 +96,7 @@ class TestIntegration:
         # Assertions
         mock_capturer.capture_sync.assert_called_once()
         mock_uploader.upload_screenshot.assert_called_once()
-        mock_bio_updater.update_bio.assert_called_once()
+        mock_readme_updater.update_readme.assert_called_once()
         mock_cleanup.assert_called_once()
 
     @patch.dict(
@@ -106,12 +104,11 @@ class TestIntegration:
         {
             "GITHUB_TOKEN": "test_token",
             "GITHUB_USERNAME": "testuser",
-            "GITHUB_REPO": "testuser/test-repo",
             "PROFILE_URL": "https://github.com/testuser",
             "DRY_RUN": "false",
         },
     )
-    @patch("src.main.BioUpdater")
+    @patch("src.main.ReadmeUpdater")
     @patch("src.main.GitHubUploader")
     @patch("src.main.ScreenshotCapture")
     @patch("src.main.setup_logging")
@@ -120,7 +117,7 @@ class TestIntegration:
         mock_logging,
         mock_capturer_class,
         mock_uploader_class,
-        mock_bio_updater_class,
+        mock_readme_updater_class,
         tmp_path,
     ):
         """Test workflow when screenshot capture fails."""
@@ -140,7 +137,7 @@ class TestIntegration:
 
         assert "Screenshot failed" in str(excinfo.value)
 
-        # Upload and bio update should not be called
+        # Upload and README update should not be called
         mock_uploader = mock_uploader_class.return_value
         mock_uploader.upload_screenshot.assert_not_called()
 
@@ -149,12 +146,11 @@ class TestIntegration:
         {
             "GITHUB_TOKEN": "test_token",
             "GITHUB_USERNAME": "testuser",
-            "GITHUB_REPO": "testuser/test-repo",
             "PROFILE_URL": "https://github.com/testuser",
             "DRY_RUN": "false",
         },
     )
-    @patch("src.main.BioUpdater")
+    @patch("src.main.ReadmeUpdater")
     @patch("src.main.GitHubUploader")
     @patch("src.main.ScreenshotCapture")
     @patch("src.main.setup_logging")
@@ -163,7 +159,7 @@ class TestIntegration:
         mock_logging,
         mock_capturer_class,
         mock_uploader_class,
-        mock_bio_updater_class,
+        mock_readme_updater_class,
         tmp_path,
     ):
         """Test workflow when upload fails."""
@@ -191,35 +187,34 @@ class TestIntegration:
 
         assert "Upload failed" in str(excinfo.value)
 
-        # Bio update should not be called
-        mock_bio_updater = mock_bio_updater_class.return_value
-        mock_bio_updater.update_bio.assert_not_called()
+        # README update should not be called
+        mock_readme_updater = mock_readme_updater_class.return_value
+        mock_readme_updater.update_readme.assert_not_called()
 
     @patch.dict(
         os.environ,
         {
             "GITHUB_TOKEN": "test_token",
             "GITHUB_USERNAME": "testuser",
-            "GITHUB_REPO": "testuser/test-repo",
             "PROFILE_URL": "https://github.com/testuser",
             "DRY_RUN": "false",
         },
     )
     @patch("src.main.cleanup_old_screenshots")
-    @patch("src.main.BioUpdater")
+    @patch("src.main.ReadmeUpdater")
     @patch("src.main.GitHubUploader")
     @patch("src.main.ScreenshotCapture")
     @patch("src.main.setup_logging")
-    def test_workflow_bio_update_failure_with_rollback(
+    def test_workflow_readme_update_failure(
         self,
         mock_logging,
         mock_capturer_class,
         mock_uploader_class,
-        mock_bio_updater_class,
+        mock_readme_updater_class,
         mock_cleanup,
         tmp_path,
     ):
-        """Test workflow when bio update fails and rollback is attempted."""
+        """Test workflow when README update fails."""
         # Setup mocks
         mock_logger = MagicMock()
         mock_logging.return_value = mock_logger
@@ -234,30 +229,26 @@ class TestIntegration:
 
         # Upload succeeds
         mock_uploader = MagicMock()
-        mock_uploader.upload_screenshot.return_value = "https://example.com/screenshot.png"
+        mock_uploader.upload_screenshot.return_value = "./screenshots/test.png"
         mock_uploader_class.return_value = mock_uploader
 
-        # Bio update fails
-        mock_bio_updater = MagicMock()
-        mock_bio_updater.update_bio.side_effect = Exception("Bio update failed")
-        mock_bio_updater_class.return_value = mock_bio_updater
+        # README update fails
+        mock_readme_updater = MagicMock()
+        mock_readme_updater.update_readme.side_effect = Exception("README update failed")
+        mock_readme_updater_class.return_value = mock_readme_updater
 
         # Run workflow should raise exception
         with patch("src.main.get_project_root", return_value=tmp_path):
             with pytest.raises(Exception) as excinfo:
                 run_workflow(dry_run=False)
 
-        assert "Bio update failed" in str(excinfo.value)
-
-        # Rollback should be attempted
-        mock_bio_updater.rollback.assert_called_once()
+        assert "README update failed" in str(excinfo.value)
 
     @patch.dict(
         os.environ,
         {
             "GITHUB_TOKEN": "test_token",
             "GITHUB_USERNAME": "testuser",
-            "GITHUB_REPO": "testuser/test-repo",
             "PROFILE_URL": "https://github.com/testuser",
         },
     )

@@ -16,7 +16,6 @@ class TestConfig:
         {
             "GITHUB_TOKEN": "test_token",
             "GITHUB_USERNAME": "testuser",
-            "GITHUB_REPO": "testuser/test-repo",
             "PROFILE_URL": "https://github.com/testuser",
         },
     )
@@ -25,7 +24,7 @@ class TestConfig:
         config = Config.from_env()
         assert config.github_token == "test_token"
         assert config.github_username == "testuser"
-        assert config.github_repo == "testuser/test-repo"
+        assert config.profile_repo == "fUmar3542/fUmar3542"
         assert config.profile_url == "https://github.com/testuser"
 
     @patch("src.config.load_dotenv")
@@ -42,22 +41,6 @@ class TestConfig:
         {
             "GITHUB_TOKEN": "test_token",
             "GITHUB_USERNAME": "testuser",
-            "GITHUB_REPO": "invalid_format",
-            "PROFILE_URL": "https://github.com/testuser",
-        },
-    )
-    def test_from_env_invalid_repo_format(self):
-        """Test that invalid repository format raises ValueError."""
-        with pytest.raises(ValueError) as excinfo:
-            Config.from_env()
-        assert "must be in format 'owner/repo'" in str(excinfo.value)
-
-    @patch.dict(
-        os.environ,
-        {
-            "GITHUB_TOKEN": "test_token",
-            "GITHUB_USERNAME": "testuser",
-            "GITHUB_REPO": "testuser/test-repo",
             "PROFILE_URL": "https://example.com/testuser",
         },
     )
@@ -72,7 +55,6 @@ class TestConfig:
         {
             "GITHUB_TOKEN": "test_token",
             "GITHUB_USERNAME": "testuser",
-            "GITHUB_REPO": "testuser/test-repo",
             "PROFILE_URL": "https://github.com/testuser",
             "VIEWPORT_WIDTH": "2560",
             "VIEWPORT_HEIGHT": "1440",
@@ -95,8 +77,7 @@ class TestConfig:
         config = Config(
             github_token="test",
             github_username="test",
-            github_repo="test/repo",
-            profile_url="https://github.com/test",
+                        profile_url="https://github.com/test",
         )
         config.validate()  # Should not raise
 
@@ -105,8 +86,7 @@ class TestConfig:
         config = Config(
             github_token="test",
             github_username="test",
-            github_repo="test/repo",
-            profile_url="https://github.com/test",
+                        profile_url="https://github.com/test",
             viewport_width=500,
         )
         with pytest.raises(ValueError) as excinfo:
@@ -118,8 +98,7 @@ class TestConfig:
         config = Config(
             github_token="test",
             github_username="test",
-            github_repo="test/repo",
-            profile_url="https://github.com/test",
+                        profile_url="https://github.com/test",
             viewport_height=400,
         )
         with pytest.raises(ValueError) as excinfo:
@@ -131,8 +110,7 @@ class TestConfig:
         config = Config(
             github_token="test",
             github_username="test",
-            github_repo="test/repo",
-            profile_url="https://github.com/test",
+                        profile_url="https://github.com/test",
             screenshot_quality=150,
         )
         with pytest.raises(ValueError) as excinfo:
@@ -144,8 +122,7 @@ class TestConfig:
         config = Config(
             github_token="test",
             github_username="test",
-            github_repo="test/repo",
-            profile_url="https://github.com/test",
+                        profile_url="https://github.com/test",
             log_level="INVALID",
         )
         with pytest.raises(ValueError) as excinfo:

@@ -10,19 +10,22 @@ logger = logging.getLogger("github_screenshot_automation.uploader")
 
 
 class GitHubUploader:
-    """Handles uploading screenshots to GitHub repository."""
+    """Handles uploading screenshots to GitHub profile repository."""
 
-    def __init__(self, token: str, repo_name: str, max_retries: int = 3):
+    PROFILE_REPO = "fUmar3542/fUmar3542"
+
+    def __init__(self, token: str, username: str, max_retries: int = 3):
         """
         Initialize GitHub uploader.
 
         Args:
             token: GitHub personal access token
-            repo_name: Repository name in format 'owner/repo'
+            username: GitHub username (used for validation)
             max_retries: Maximum number of retry attempts for failed uploads
         """
         self.token = token
-        self.repo_name = repo_name
+        self.username = username
+        self.repo_name = self.PROFILE_REPO
         self.max_retries = max_retries
         self.github: Github | None = None
         self.repo: Repository.Repository | None = None
@@ -58,7 +61,7 @@ class GitHubUploader:
         self, file_path: Path, remote_path: str, commit_message: str | None = None
     ) -> str:
         """
-        Upload screenshot to GitHub repository.
+        Upload screenshot to GitHub profile repository.
 
         Args:
             file_path: Local path to screenshot file
@@ -66,7 +69,7 @@ class GitHubUploader:
             commit_message: Optional commit message
 
         Returns:
-            Raw URL to uploaded file
+            Relative path to uploaded file (e.g., './screenshots/filename.png')
 
         Raises:
             Exception: If upload fails after all retries
@@ -80,7 +83,7 @@ class GitHubUploader:
         if commit_message is None:
             commit_message = f"Add screenshot: {file_path.name}"
 
-        logger.info(f"Uploading {file_path} to {remote_path}")
+        logger.info(f"Uploading {file_path} to {self.repo_name}/{remote_path}")
 
         # Read file content
         with open(file_path, "rb") as f:
@@ -111,10 +114,10 @@ class GitHubUploader:
                     else:
                         raise
 
-                # Generate raw URL
-                raw_url = self._generate_raw_url(remote_path)
-                logger.info(f"Upload successful. Raw URL: {raw_url}")
-                return raw_url
+                # Return relative path
+                relative_path = f"./{remote_path}"
+                logger.info(f"Upload successful. Relative path: {relative_path}")
+                return relative_path
 
             except GithubException as e:
                 logger.warning(
@@ -132,22 +135,6 @@ class GitHubUploader:
                 logger.error(f"Unexpected error during upload: {e}")
                 raise
 
-    def _generate_raw_url(self, remote_path: str) -> str:
-        """
-        Generate raw GitHub URL for file.
-
-        Args:
-            remote_path: Remote file path in repository
-
-        Returns:
-            Raw URL to access file directly
-        """
-        # Format: https://raw.githubusercontent.com/owner/repo/main/path/to/file
-        owner, repo = self.repo_name.split("/")
-        default_branch = self.repo.default_branch if self.repo else "main"
-        raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{default_branch}/{remote_path}"
-        return raw_url
-
     def close(self) -> None:
         """Close GitHub connection."""
         if self.github:
@@ -157,25 +144,25 @@ class GitHubUploader:
 
 def upload_to_github(
     token: str,
-    repo_name: str,
+    username: str,
     file_path: Path,
     remote_path: str,
     commit_message: str | None = None,
 ) -> str:
     """
-    Convenience function to upload a screenshot to GitHub.
+    Convenience function to upload a screenshot to GitHub profile repository.
 
     Args:
         token: GitHub personal access token
-        repo_name: Repository name in format 'owner/repo'
+        username: GitHub username
         file_path: Local path to screenshot file
         remote_path: Remote path in repository
         commit_message: Optional commit message
 
     Returns:
-        Raw URL to uploaded file
+        Relative path to uploaded file
     """
-    uploader = GitHubUploader(token, repo_name)
+    uploader = GitHubUploader(token, username)
     try:
         return uploader.upload_screenshot(file_path, remote_path, commit_message)
     finally:

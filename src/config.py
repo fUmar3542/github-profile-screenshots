@@ -14,11 +14,11 @@ class Config:
     github_token: str
     github_username: str
 
-    # GitHub Repository for Screenshots (required)
-    github_repo: str
-
     # Target Profile (required)
     profile_url: str
+
+    # Profile Repository (hardcoded)
+    profile_repo: str = "fUmar3542/fUmar3542"
 
     # GitHub Repository path (optional)
     screenshot_path: str = "screenshots"
@@ -59,7 +59,6 @@ class Config:
         required_vars = {
             "GITHUB_TOKEN": "GitHub personal access token",
             "GITHUB_USERNAME": "GitHub username",
-            "GITHUB_REPO": "GitHub repository for screenshots (format: owner/repo)",
             "PROFILE_URL": "GitHub profile URL to screenshot",
         }
 
@@ -74,11 +73,6 @@ class Config:
                 + "\n".join(f"  - {var}" for var in missing_vars)
             )
 
-        # Validate GitHub repo format
-        github_repo = os.getenv("GITHUB_REPO", "")
-        if "/" not in github_repo:
-            raise ValueError(f"GITHUB_REPO must be in format 'owner/repo', got: {github_repo}")
-
         # Validate profile URL
         profile_url = os.getenv("PROFILE_URL", "")
         if not profile_url.startswith("https://github.com/"):
@@ -89,9 +83,8 @@ class Config:
         return cls(
             github_token=os.getenv("GITHUB_TOKEN", ""),
             github_username=os.getenv("GITHUB_USERNAME", ""),
-            github_repo=github_repo,
-            screenshot_path=os.getenv("SCREENSHOT_PATH", "screenshots"),
             profile_url=profile_url,
+            screenshot_path=os.getenv("SCREENSHOT_PATH", "screenshots"),
             viewport_width=int(os.getenv("VIEWPORT_WIDTH", "1920")),
             viewport_height=int(os.getenv("VIEWPORT_HEIGHT", "1080")),
             screenshot_quality=int(os.getenv("SCREENSHOT_QUALITY", "90")),

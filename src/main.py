@@ -3,7 +3,7 @@
 import argparse
 import sys
 
-from .bio_updater import BioUpdater
+from .readme_updater import ReadmeUpdater
 from .config import load_config
 from .github_uploader import GitHubUploader
 from .screenshot_capture import ScreenshotCapture
@@ -57,50 +57,44 @@ def run_workflow(dry_run: bool = False) -> None:
         logger.info(f"Screenshot captured: {screenshot_path}")
 
         if dry_run or config.dry_run:
-            logger.info("DRY RUN: Skipping upload and bio update")
+            logger.info("DRY RUN: Skipping upload and README update")
             logger.info(f"Screenshot saved at: {screenshot_path}")
             return
 
-        # Step 2: Upload to GitHub
+        # Step 2: Upload to GitHub profile repository
         logger.info("=" * 60)
-        logger.info("Step 2: Uploading to GitHub repository")
+        logger.info("Step 2: Uploading to GitHub profile repository")
         logger.info("=" * 60)
 
-        uploader = GitHubUploader(config.github_token, config.github_repo)
+        uploader = GitHubUploader(config.github_token, config.github_username)
         remote_path = f"{config.screenshot_path}/{screenshot_filename}"
 
         try:
-            raw_url = uploader.upload_screenshot(
+            relative_path = uploader.upload_screenshot(
                 file_path=screenshot_path,
                 remote_path=remote_path,
                 commit_message=f"Add profile screenshot: {screenshot_filename}",
             )
-            logger.info(f"Screenshot uploaded. Raw URL: {raw_url}")
+            logger.info(f"Screenshot uploaded. Relative path: {relative_path}")
         finally:
             uploader.close()
 
-        # Step 3: Update bio
+        # Step 3: Update profile README
         logger.info("=" * 60)
-        logger.info("Step 3: Updating GitHub profile bio")
+        logger.info("Step 3: Updating GitHub profile README")
         logger.info("=" * 60)
 
-        bio_updater = BioUpdater(config.github_token, config.github_username)
+        readme_updater = ReadmeUpdater(config.github_token, config.github_username)
 
         try:
-            new_bio = bio_updater.update_bio(raw_url, prepend=True)
-            logger.info("Bio updated successfully")
-            logger.info(f"New bio: {new_bio}")
+            new_readme = readme_updater.update_readme(screenshot_filename)
+            logger.info("README updated successfully")
+            logger.info(f"New README: {new_readme}")
         except Exception as e:
-            logger.error(f"Failed to update bio: {e}")
-            logger.info("Attempting rollback...")
-            try:
-                bio_updater.rollback()
-                logger.info("Rollback successful")
-            except Exception as rollback_error:
-                logger.error(f"Rollback failed: {rollback_error}")
+            logger.error(f"Failed to update README: {e}")
             raise
         finally:
-            bio_updater.close()
+            readme_updater.close()
 
         # Step 4: Cleanup old screenshots
         logger.info("=" * 60)

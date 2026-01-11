@@ -82,11 +82,25 @@ class ScreenshotCapture:
                 # Additional wait for dynamic content
                 await asyncio.sleep(2)
 
+                # Scroll to Popular repositories section
+                logger.info("Scrolling to Popular repositories section")
+                try:
+                    # Try to find and scroll to the Popular repositories section
+                    popular_repos = page.locator('h2:has-text("Popular repositories")')
+                    await popular_repos.scroll_into_view_if_needed()
+                    logger.info("Scrolled to Popular repositories section")
+
+                    # Wait for content to settle after scrolling
+                    await page.wait_for_timeout(2000)
+                except Exception as e:
+                    logger.warning(f"Could not find Popular repositories section: {e}")
+                    logger.warning("Capturing full page from top instead")
+
                 # Ensure output directory exists
                 ensure_directory_exists(output_path.parent)
 
-                # Capture screenshot
-                logger.info(f"Capturing screenshot to {output_path}")
+                # Capture full page screenshot from current scroll position
+                logger.info(f"Capturing full page screenshot to {output_path}")
                 await page.screenshot(
                     path=str(output_path),
                     full_page=True,
